@@ -56,6 +56,20 @@ def get_categorias():
     finally:
         cursor.close()  # 🔹 Cierra el cursor después de la consulta
 
+@app.get("/contactos/{usuario}")
+def get_contactos(usuario: str):
+    cursor = db.get_cursor()
+    try:
+        cursor.execute(f"SELECT c.conces, c.correocontacto FROM contacto c WHERE c.contactosUsuario = '{usuario}'")
+        categorias = [{"id": row[0], "contacto": row[1]} for row in cursor.fetchall()]
+        return categorias
+    except Exception as e:
+        return {"error": f"Error al obtener contactos: {e}"}
+    finally:
+        cursor.close() 
+
+
+
 @app.get("/mensajes/{carpeta}/{usuario}")
 def get_mensajes(carpeta: str, usuario: str):
     cursor = db.get_cursor()
