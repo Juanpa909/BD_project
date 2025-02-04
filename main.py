@@ -56,18 +56,20 @@ def get_categorias():
     finally:
         cursor.close()  # 🔹 Cierra el cursor después de la consulta
 
-@app.get("/mensajes/enviados/{usuario}")
-def get_mensajes(usuario: str):
+@app.get("/mensajes/{carpeta}/{usuario}")
+def get_mensajes(carpeta: str, usuario: str):
     cursor = db.get_cursor()
     try:
-        query = """SELECT C.correoContacto Destinatario, M.asunto Asunto, 
-                   M.cuerpoMensaje Mensaje, M.fechaAccion Fecha
-                   FROM contacto C, mensaje M, destinatario D 
-                   WHERE M.usuario = :usuario 
+        query = f"""SELECT M.idmensaje id, C.correoContacto Destinatario, M.asunto Asunto, 
+                   M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
+                   FROM contacto C, mensaje M, destinatario D
+                   WHERE M.usuario = '{usuario}' 
                    AND M.idMensaje = D.idMensaje 
-                   AND D.conces = C.conces"""
-        cursor.execute(query, {"usuario": usuario})
-        mensajes = [{"destinatario": row[0], "asunto": row[1], "mensaje": row[2], "fecha": row[3]} for row in cursor.fetchall()]
+                   AND D.conces = C.conces
+                   AND M.idtipocarpeta = '{carpeta}'"""
+        print(query)
+        cursor.execute(query)
+        mensajes = [{"id": row[0],"destinatario": row[1], "asunto": row[2], "mensaje": row[3], "fecha": row[4]} for row in cursor.fetchall()]
         return mensajes
     except Exception as e:
         return {"error": f"Error al obtener mensajes: {e}"}
