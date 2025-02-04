@@ -60,17 +60,31 @@ def get_categorias():
 def get_mensajes(carpeta: str, usuario: str):
     cursor = db.get_cursor()
     try:
-        query = f"""SELECT M.idmensaje id, C.correoContacto Destinatario, M.asunto Asunto, 
-                   M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
-                   FROM contacto C, mensaje M, destinatario D
-                   WHERE M.usuario = '{usuario}' 
-                   AND M.idMensaje = D.idMensaje 
-                   AND D.conces = C.conces
-                   AND M.idtipocarpeta = '{carpeta}'"""
-        print(query)
-        cursor.execute(query)
-        mensajes = [{"id": row[0],"destinatario": row[1], "asunto": row[2], "mensaje": row[3], "fecha": row[4]} for row in cursor.fetchall()]
-        return mensajes
+        if carpeta == "Rec":
+            query = f"""SELECT M.idmensaje id, M.men_usuario Remitente, C.correoContacto Destinatario, M.asuton Asunto,
+                M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
+                FROM contacto C, mensaje M, destinatario D
+                WHERE M.usuario = '{usuario}'
+                AND M.idmensaje = D.idmensaje
+                AND D.conces = C.conces
+                AND M.idtipocarpeta = '{carpeta}'"""
+            print(query)
+            cursor.execute(query)
+            mensajes = [{"id": row[0],"remitente": row[1], "destinatario" : row[2], "asunto": row[3], "mensaje": row[4], "fecha": row[5]} for row in cursor.fetchall()]
+            return mensajes
+        elif(carpeta in ["Env", "Bor"]):
+            query = f"""SELECT M.idmensaje id, C.correoContacto Destinatario, D.idtipocopia Visibilidad, M.asunto Asunto,
+                    M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
+                    FROM contacto C, mensaje M, destinatario D
+                    WHERE M.usuario = '{usuario}'
+                    AND M.idMensaje = D.idMensaje
+                    AND D.conces = C.conces
+                    AND M.idtipocarpeta = '{carpeta}'"""
+            print(query)
+            cursor.execute(query)
+            mensajes = [{"id": row[0],"destinatario": row[1],"visibilidad":row[2], "asunto": row[3], "mensaje": row[4], "fecha": row[5]} for row in cursor.fetchall()]
+            return mensajes
+
     except Exception as e:
         return {"error": f"Error al obtener mensajes: {e}"}
     finally:
