@@ -255,7 +255,7 @@ def post_mesnaje(datos: mensaje):
                 WHERE contactosusuario = '{datos.usuario}' AND correocontacto = '{destinatario.correo}'
                 """
                 cursor.execute(query)
-                conces = [{"conces":row[0]} for row in cursor.fetchall()]
+                conces = [{"conces":row[0]} for row in cursor.fetchall()][0]["conces"]
                 # En caso de que no creamos el contacto
                 if not conces:
                     cursor.execute("SELECT MAX(conces) from contacto")
@@ -277,7 +277,7 @@ def post_mesnaje(datos: mensaje):
                     WHERE usuarioContacto = '{destinatario.correo}' AND contactosUsuario = '{datos.usuario}'
                     """
                     cursor.execute(query)
-                    conces = [{"conces":row[0]} for row in cursor.fetchall()]
+                    conces = [{"conces":row[0]} for row in cursor.fetchall()][0]["conces"]
                     # Si no exite lo creamos
                     if not conces:
                         cursor.execute("SELECT MAX(conces) from contacto")
@@ -285,7 +285,6 @@ def post_mesnaje(datos: mensaje):
                         query= f"""INSERT INTO contacto (conces, usuariocontacto, contactosusuario, nombrecontacto, correocontacto)
                         VALUES ({conces}, '{destinatario.correo}', '{datos.usuario}', '{nombre}', '{destinatario.correo+'@BD.edu.co'}')
                         """
-                        print(query)
                         cursor.execute(query)
                     # Insertamos el mensaje para el destinatario
                     query = f"""INSERT INTO mensaje (USUARIO, IDMENSAJE, IDCATEGORIA, IDPAIS, MEN_USUARIO, MEN_IDMENSAJE, 
@@ -306,10 +305,9 @@ def post_mesnaje(datos: mensaje):
             cursor.execute(query)
         
         db.commit()
-
+        return {"message": "Se ha enviado el mensaje"}
     except cx_Oracle.DatabaseError as e:
-        error, = e.args
-        print(f"Error al insertar: {error.message}")
         db.rollback()
+        return {"message": "Error al enviar mensajes"}
     finally:
         cursor.close()
