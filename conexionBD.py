@@ -26,6 +26,9 @@ class conexionBD:
     def get_cursor(self):
         return self.connection.cursor()  # Devuelve un cursor nuevo en cada llamada
 
+    def rollback(self):
+        self.connection.rollback()
+
     def commit(self):
         self.connection.commit()
 

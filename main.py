@@ -1,3 +1,5 @@
+import cx_Oracle
+from datetime import datetime
 from typing import List
 from fastapi import FastAPI
 from conexionBD import conexionBD
@@ -156,13 +158,96 @@ def get_mensajes(carpeta: str, usuario: str):
     finally:
         cursor.close()
   
+# Metodo para crear un mensaje
 @app.post("/enviar")
 def post_mesnaje(datos: mensaje):
     cursor = db.get_cursor()
     try:
-        cursor.execute("SELECT MAX(idmensaje) FROM mensaje")
-        print(cursor.fetchone())
-    except Exception as e:
-        return {"error": f"Error al obtener contactos: {e}"}
+        #Consultamos el siguiente consecutivo
+        cursor.execute("SELECT MAX(TO_NUMBER(idmensaje)) FROM mensaje")
+        idmensaje = int(cursor.fetchone()[0]) + 1
+        fecha_actual = datetime.today().strftime('%Y-%m-%d')
+        hora_actual = datetime.now().strftime('%H:%M:%S')
+        # Insertamos el mensaje creado por el usuario
+        query = f"""INSERT INTO mensaje (USUARIO, IDMENSAJE, IDCATEGORIA, IDPAIS, MEN_USUARIO, 
+                MEN_IDMENSAJE, IDTIPOCARPETA, ASUNTO, CUERPOMENSAJE, FECHAACCION, HORAACCION)
+                VALUES ('{datos.usuario}', '{idmensaje}', 'PRI', '169', null, null, 'Env', '{datos.asunto}',
+                '{datos.mensaje}', to_date('{fecha_actual}', 'YYYY-MM-DD'), to_date('{hora_actual}', 'HH24:MI:SS'))
+        """
+        cursor.execute(query)
+        # Insertamos los archivos 
+        for archivo in datos.archivos:
+            cursor.execute("SELECT MAX(consecArchivo) from archivoadjunto")
+            consecArchivo = int(cursor.fetchone()[0])+1
+            query = f"""INSERT INTO archivoadjunto (CONSECARCHIVO, IDTIPOARCHIVO, USUARIO, IDMENSAJE, NOMARCHIVO)
+                    VALUES ({consecArchivo}, '{archivo[-3:].upper()}', '{datos.usuario}', '{idmensaje}', '{archivo}')
+                    """
+            cursor.execute(query)
+        # Insercion de destinatarios
+        for destinatario in datos.destinatarios:
+
+            #Validamos si el destinatario es un usuario registrado
+            if '@' in destinatario.correo:
+                # Validamos si existe el contacto
+                query = f"""SELECT conces from contacto 
+                WHERE contactosusuario = '{datos.usuario}' AND correocontacto = '{destinatario.correo}'
+                """
+                cursor.execute(query)
+                conces = [{"conces":row[0]} for row in cursor.fetchall()]
+                # En caso de que no creamos el contacto
+                if not conces:
+                    cursor.execute("SELECT MAX(conces) from contacto")
+                    conces = int(cursor.fetchone()[0])+1
+                    query = f"""INSERT INTO contacto (conces, usuariocontacto, contactosusuario, nombrecontacto, correocontacto)
+                        VALUES ({conces}, NULL, '{datos.usuario}', NULL, '{destinatario.correo}')
+                        """
+                    cursor.execute(query)
+            else:
+                # Validamos que exista el usuario en la base
+                query = f"""SELECT nombre from usuario 
+                WHERE usuario = '{destinatario.correo}'
+                """
+                cursor.execute(query)
+                nombre = cursor.fetchone()[0]
+                # Validamos que exista el contacto
+                if nombre:
+                    query = f"""SELECT conces from contacto 
+                    WHERE usuarioContacto = '{destinatario.correo}' AND contactosUsuario = '{datos.usuario}'
+                    """
+                    cursor.execute(query)
+                    conces = [{"conces":row[0]} for row in cursor.fetchall()]
+                    # Si no exite lo creamos
+                    if not conces:
+                        cursor.execute("SELECT MAX(conces) from contacto")
+                        conces = int(cursor.fetchone()[0])+1
+                        query= f"""INSERT INTO contacto (conces, usuariocontacto, contactosusuario, nombrecontacto, correocontacto)
+                        VALUES ({conces}, '{destinatario.correo}', '{datos.usuario}', '{nombre}', '{destinatario.correo+'@BD.edu.co'}')
+                        """
+                        print(query)
+                        cursor.execute(query)
+                    # Insertamos el mensaje para el destinatario
+                    query = f"""INSERT INTO mensaje (USUARIO, IDMENSAJE, IDCATEGORIA, IDPAIS, MEN_USUARIO, MEN_IDMENSAJE, 
+                                IDTIPOCARPETA, ASUNTO, CUERPOMENSAJE, FECHAACCION, HORAACCION) 
+                            VALUES ('{destinatario.correo}', '{idmensaje}', 'PRI','169','{datos.usuario}',
+                            '{idmensaje}', 'Rec', '{datos.asunto}','{datos.mensaje}',
+                            to_date('{fecha_actual}','YYYY-MM-DD'),to_date('{hora_actual}','HH24:MI:SS'))"""
+                    cursor.execute(query)
+                    
+                else:
+                    break
+            # Insertamos los destinatarios
+            cursor.execute("SELECT MAX(consecDestinatario) from destinatario")
+            consecDestinatario = int(cursor.fetchone()[0])+1
+            query = f"""INSERT INTO destinatario (CONSECDESTINATARIO, CONCES, IDTIPOCOPIA, USUARIO, IDMENSAJE, IDPAIS)
+                VALUES ({consecDestinatario}, {conces}, '{destinatario.visibilidad}', '{datos.usuario}', '{idmensaje}', '169')
+                """
+            cursor.execute(query)
+        
+        db.commit()
+
+    except cx_Oracle.DatabaseError as e:
+        error, = e.args
+        print(f"Error al insertar: {error.message}")
+        db.rollback()
     finally:
         cursor.close()
