@@ -118,8 +118,7 @@ def get_mensajes(carpeta: str, usuario: str):
                     FROM destinatario D
                     JOIN contacto C ON C.conces = D.conces
                     WHERE 
-                        (D.idtipocopia = 'CO') 
-                        AND D.usuario = '{usuario}'
+                        D.usuario = '{usuario}'
                         AND D.idmensaje = '{mensaje["id"]}'"""
                 cursor.execute(query)
                 destinatarios = [{"destinatario":row[0], "visibilidad":row[1]} for row in cursor.fetchall()]
