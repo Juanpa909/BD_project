@@ -7,10 +7,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Puedes cambiar "*" por una lista de dominios permitidos
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Permitir todos los métodos (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],  # Permitir todos los encabezados
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 db = conexionBD()
@@ -28,7 +28,7 @@ def get_users(usuario: str):
     except Exception as e:
         return {"error": f"Error al obtener usuario: {e}"}
     finally:
-        cursor.close()  # 🔹 Cierra el cursor después de la consulta
+        cursor.close()
     
 
 @app.get("/carpetas")
@@ -41,7 +41,7 @@ def get_carpetas():
     except Exception as e:
         return {"error": f"Error al obtener carpetas: {e}"}
     finally:
-        cursor.close()  # 🔹 Cierra el cursor después de la consulta
+        cursor.close()
 
 
 @app.get("/categorias")
@@ -54,7 +54,7 @@ def get_categorias():
     except Exception as e:
         return {"error": f"Error al obtener categorías: {e}"}
     finally:
-        cursor.close()  # 🔹 Cierra el cursor después de la consulta
+        cursor.close()
 
 @app.get("/contactos/{usuario}")
 def get_contactos(usuario: str):
@@ -75,26 +75,55 @@ def get_mensajes(carpeta: str, usuario: str):
     cursor = db.get_cursor()
     try:
         if carpeta == "Rec":
-            query = f"""SELECT M.idmensaje id, M.men_usuario Remitente, C.correoContacto Destinatario, M.asunto Asunto,
+            query = f"""SELECT DISTINCT M.idmensaje id, M.men_usuario Remitente, M.asunto Asunto,
                 M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
-                FROM contacto C, mensaje M, destinatario D
+                FROM mensaje M
                 WHERE M.usuario = '{usuario}'
-                AND M.idmensaje = D.idmensaje
-                AND D.conces = C.conces
                 AND M.idtipocarpeta = '{carpeta}'"""
             cursor.execute(query)
-            mensajes = [{"id": row[0],"remitente": row[1], "destinatario" : row[2], "asunto": row[3], "mensaje": row[4], "fecha": row[5]} for row in cursor.fetchall()]
+            mensajes = [{"id": row[0],"remitente": row[1], "asunto": row[2], "mensaje": row[3], "fecha": row[4]} for row in cursor.fetchall()]
+            for mensaje in mensajes:
+                query = f"""SELECT C.correocontacto, D.idtipocopia 
+                    FROM destinatario D
+                    JOIN contacto C ON C.conces = D.conces
+                    WHERE 
+                        ((D.idtipocopia = 'CO') 
+                        OR 
+                        (D.idtipocopia = 'COO' AND C.usuarioContacto = '{usuario}'))
+                        AND D.usuario = '{mensaje["remitente"]}'
+                        AND D.idmensaje = '{mensaje["id"]}'"""
+                cursor.execute(query)
+                destinatarios = [{"destinatario":row[0], "visibilidad":row[1]} for row in cursor.fetchall()]
+                mensaje["destinatarios"] = destinatarios
+                query = f"""SELECT A.nomarchivo
+                    FROM archivoadjunto A, mensaje M
+                    WHERE A.usuario = M.men_usuario
+                    AND A.idmensaje = M.men_idmensaje
+                    AND M.men_idmensaje = '{mensaje["id"]}'
+                    AND M.usuario = '{usuario}'"""
+                cursor.execute(query)
+                archivos = [{"nombre":row[0]} for row in cursor.fetchall()]
+                mensaje["archivos"] = archivos
             return mensajes
         elif(carpeta in ["Env", "Bor"]):
-            query = f"""SELECT M.idmensaje id, C.correoContacto Destinatario, D.idtipocopia Visibilidad, M.asunto Asunto,
+            query = f"""SELECT M.idmensaje id, M.asunto Asunto,
                     M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
-                    FROM contacto C, mensaje M, destinatario D
+                    FROM mensaje M
                     WHERE M.usuario = '{usuario}'
-                    AND M.idMensaje = D.idMensaje
-                    AND D.conces = C.conces
                     AND M.idtipocarpeta = '{carpeta}'"""
             cursor.execute(query)
-            mensajes = [{"id": row[0],"destinatario": row[1],"visibilidad":row[2], "asunto": row[3], "mensaje": row[4], "fecha": row[5]} for row in cursor.fetchall()]
+            mensajes = [{"id": row[0], "asunto": row[1], "mensaje": row[2], "fecha": row[3]} for row in cursor.fetchall()]
+            for mensaje in mensajes:
+                query = f"""SELECT C.correocontacto, D.idtipocopia 
+                    FROM destinatario D
+                    JOIN contacto C ON C.conces = D.conces
+                    WHERE 
+                        (D.idtipocopia = 'CO') 
+                        AND D.usuario = '{usuario}'
+                        AND D.idmensaje = '{mensaje["id"]}'"""
+                cursor.execute(query)
+                destinatarios = [{"destinatario":row[0], "visibilidad":row[1]} for row in cursor.fetchall()]
+                mensaje["destinatarios"] = destinatarios
             return mensajes
 
     except Exception as e:
