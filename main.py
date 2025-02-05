@@ -83,6 +83,17 @@ def get_contactos(usuario: str):
     finally:
         cursor.close() 
 
+@app.get("/tipoArchivos")
+def get_tipoArchivos():
+    cursor = db.get_cursor()
+    try:
+        cursor.execute(f"""SELECT idtipoarchivo FROM tipoarchivo""")
+        categorias = [{"tipo":row[0]} for row in cursor.fetchall()]
+        return categorias
+    except Exception as e:
+        return {"error": f"Error al obtener tipo Archivos: {e}"}
+    finally:
+        cursor.close() 
 
 
 @app.get("/mensajes/{carpeta}/{usuario}")
@@ -145,4 +156,13 @@ def get_mensajes(carpeta: str, usuario: str):
     finally:
         cursor.close()
   
-
+@app.post("/enviar")
+def post_mesnaje(datos: mensaje):
+    cursor = db.get_cursor()
+    try:
+        cursor.execute("SELECT MAX(idmensaje) FROM mensaje")
+        print(cursor.fetchone())
+    except Exception as e:
+        return {"error": f"Error al obtener contactos: {e}"}
+    finally:
+        cursor.close()
