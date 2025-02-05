@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import FastAPI
 from conexionBD import conexionBD
 from pydantic import BaseModel
@@ -14,6 +15,18 @@ app.add_middleware(
 )
 
 db = conexionBD()
+
+class destinatario(BaseModel):
+    correo: str
+    visibilidad: str
+class mensaje(BaseModel):
+    usuario: str
+    asunto: str
+    mensaje: str
+    destinatarios: List[destinatario]
+    archivos: List[str]
+
+    
 
 @app.get("/user/{usuario}")
 def get_users(usuario: str):
@@ -60,8 +73,10 @@ def get_categorias():
 def get_contactos(usuario: str):
     cursor = db.get_cursor()
     try:
-        cursor.execute(f"SELECT c.conces, c.correocontacto FROM contacto c WHERE c.contactosUsuario = '{usuario}'")
-        categorias = [{"id": row[0], "contacto": row[1]} for row in cursor.fetchall()]
+        cursor.execute(f"""SELECT c.conces, NVL(c.usuariocontacto, c.correocontacto) 
+                FROM contacto c 
+                WHERE c.contactosUsuario = '{usuario}'""")
+        categorias = [{"id":row[0], "contacto": row[1]} for row in cursor.fetchall()]
         return categorias
     except Exception as e:
         return {"error": f"Error al obtener contactos: {e}"}
