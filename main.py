@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+# Definimos los permisos
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,9 +19,12 @@ app.add_middleware(
 
 db = conexionBD()
 
+#Modelo de los detinatarios
 class destinatario(BaseModel):
     correo: str
     visibilidad: str
+
+# Modelo de los mensajes
 class mensaje(BaseModel):
     usuario: str
     asunto: str
@@ -29,11 +33,12 @@ class mensaje(BaseModel):
     archivos: List[str]
 
     
-
+#Metodo para validar el usuario
 @app.get("/user/{usuario}")
 def get_users(usuario: str):
     cursor = db.get_cursor()
     try:
+        #Consulta para validar si el usuario esta registrado
         cursor.execute("SELECT nombre, apellido FROM usuario WHERE usuario = :usuario", {"usuario": usuario})
         user = cursor.fetchone()
         if user:
@@ -45,11 +50,12 @@ def get_users(usuario: str):
     finally:
         cursor.close()
     
-
+#Metodo para consultar las carpetas
 @app.get("/carpetas")
 def get_carpetas():
     cursor = db.get_cursor()
     try:
+        # Consultamos todas las carpetas
         cursor.execute("SELECT t.idtipocarpeta, t.desctipocarpeta FROM tipocarpeta t")
         carpetas = [{"id": row[0], "nombre": row[1]} for row in cursor.fetchall()]
         return carpetas
@@ -58,11 +64,12 @@ def get_carpetas():
     finally:
         cursor.close()
 
-
+# Metodo para consultar categorias
 @app.get("/categorias")
 def get_categorias():
     cursor = db.get_cursor()
     try:
+        # Consultamos todas las categorias
         cursor.execute("SELECT c.idcategoria, c.desccategoria FROM categoria c")
         categorias = [{"id": row[0], "nombre": row[1]} for row in cursor.fetchall()]
         return categorias
@@ -71,10 +78,12 @@ def get_categorias():
     finally:
         cursor.close()
 
+# Metodo para consultar los contactos de un usuario
 @app.get("/contactos/{usuario}")
 def get_contactos(usuario: str):
     cursor = db.get_cursor()
     try:
+        # Consultamos los contactos del usuario
         cursor.execute(f"""SELECT c.conces, NVL(c.usuariocontacto, c.correocontacto) 
                 FROM contacto c 
                 WHERE c.contactosUsuario = '{usuario}'""")
@@ -85,10 +94,12 @@ def get_contactos(usuario: str):
     finally:
         cursor.close() 
 
+# Metodo para consultar los tipos de archivo
 @app.get("/tipoArchivos")
 def get_tipoArchivos():
     cursor = db.get_cursor()
     try:
+        # Consultamos los tipos de archivo
         cursor.execute(f"""SELECT idtipoarchivo FROM tipoarchivo""")
         categorias = [{"tipo":row[0]} for row in cursor.fetchall()]
         return categorias
@@ -97,13 +108,15 @@ def get_tipoArchivos():
     finally:
         cursor.close() 
 
-
+# Metodo para consultar los mensajes segun la carpeta y el usuario
 @app.get("/mensajes/{carpeta}/{usuario}")
 def get_mensajes(carpeta: str, usuario: str):
     cursor = db.get_cursor()
     try:
+        # Validamos si la carpeta es recibidos
         if carpeta == "Rec":
-            query = f"""SELECT DISTINCT M.idmensaje id, M.men_usuario Remitente, M.asunto Asunto,
+            # Consultamos los mensajes que tiene en recibidos el usuario
+            query = f"""SELECT M.idmensaje id, M.men_usuario Remitente, M.asunto Asunto,
                 M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
                 FROM mensaje M
                 WHERE M.usuario = '{usuario}'
@@ -111,6 +124,7 @@ def get_mensajes(carpeta: str, usuario: str):
             cursor.execute(query)
             mensajes = [{"id": row[0],"remitente": row[1], "asunto": row[2], "mensaje": row[3], "fecha": row[4]} for row in cursor.fetchall()]
             for mensaje in mensajes:
+                # Consultamos los destinatarios de cada mensaje
                 query = f"""SELECT C.correocontacto, D.idtipocopia 
                     FROM destinatario D
                     JOIN contacto C ON C.conces = D.conces
@@ -123,6 +137,7 @@ def get_mensajes(carpeta: str, usuario: str):
                 cursor.execute(query)
                 destinatarios = [{"destinatario":row[0], "visibilidad":row[1]} for row in cursor.fetchall()]
                 mensaje["destinatarios"] = destinatarios
+                # Consultamos los archivos adjuntos de cada mensaje
                 query = f"""SELECT A.nomarchivo
                     FROM archivoadjunto A, mensaje M
                     WHERE A.usuario = M.men_usuario
@@ -133,7 +148,9 @@ def get_mensajes(carpeta: str, usuario: str):
                 archivos = [{"nombre":row[0]} for row in cursor.fetchall()]
                 mensaje["archivos"] = archivos
             return mensajes
+        # Caso en que se consulte enviados o borradores
         elif(carpeta in ["Env", "Bor"]):
+            # Consultamos los mensajes que estan en enviados o borradores
             query = f"""SELECT M.idmensaje id, M.asunto Asunto,
                     M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
                     FROM mensaje M
@@ -142,6 +159,7 @@ def get_mensajes(carpeta: str, usuario: str):
             cursor.execute(query)
             mensajes = [{"id": row[0], "asunto": row[1], "mensaje": row[2], "fecha": row[3]} for row in cursor.fetchall()]
             for mensaje in mensajes:
+                # Consultamos los destinatarios de cada mensaje
                 query = f"""SELECT C.correocontacto, D.idtipocopia 
                     FROM destinatario D
                     JOIN contacto C ON C.conces = D.conces
@@ -151,8 +169,52 @@ def get_mensajes(carpeta: str, usuario: str):
                 cursor.execute(query)
                 destinatarios = [{"destinatario":row[0], "visibilidad":row[1]} for row in cursor.fetchall()]
                 mensaje["destinatarios"] = destinatarios
+                # Consultamos los archivos de cada mensaje
+                query = f"""SELECT A.nomarchivo
+                    FROM archivoadjunto A, mensaje M
+                    WHERE A.usuario = M.men_usuario
+                    AND A.idmensaje = M.men_idmensaje
+                    AND M.men_idmensaje = '{mensaje["id"]}'
+                    AND M.usuario = '{usuario}'"""
+                cursor.execute(query)
+                archivos = [{"nombre":row[0]} for row in cursor.fetchall()]
+                mensaje["archivos"] = archivos
             return mensajes
-
+        else:
+            # Consultamos los mensajes segun categorias
+            query = f"""SELECT M.idmensaje id, M.men_usuario Remitente, M.asunto Asunto,
+                M.cuerpoMensaje Mensaje, to_char(M.fechaAccion, 'YYYY-MM-DD') Fecha
+                FROM mensaje M
+                WHERE M.usuario = '{usuario}'
+                AND M.idtipocarpeta = 'Rec'
+                AND M.idcategoria = '{carpeta}'"""
+            cursor.execute(query)
+            mensajes = [{"id": row[0],"remitente": row[1], "asunto": row[2], "mensaje": row[3], "fecha": row[4]} for row in cursor.fetchall()]
+            for mensaje in mensajes:
+                # Consultamos los destinatarios de cada mensaje
+                query = f"""SELECT C.correocontacto, D.idtipocopia 
+                    FROM destinatario D
+                    JOIN contacto C ON C.conces = D.conces
+                    WHERE 
+                        ((D.idtipocopia = 'CO') 
+                        OR 
+                        (D.idtipocopia = 'COO' AND C.usuarioContacto = '{usuario}'))
+                        AND D.usuario = '{mensaje["remitente"]}'
+                        AND D.idmensaje = '{mensaje["id"]}'"""
+                cursor.execute(query)
+                destinatarios = [{"destinatario":row[0], "visibilidad":row[1]} for row in cursor.fetchall()]
+                mensaje["destinatarios"] = destinatarios
+                # Consultamos los archivos adjuntos de cada mensaje
+                query = f"""SELECT A.nomarchivo
+                    FROM archivoadjunto A, mensaje M
+                    WHERE A.usuario = M.men_usuario
+                    AND A.idmensaje = M.men_idmensaje
+                    AND M.men_idmensaje = '{mensaje["id"]}'
+                    AND M.usuario = '{usuario}'"""
+                cursor.execute(query)
+                archivos = [{"nombre":row[0]} for row in cursor.fetchall()]
+                mensaje["archivos"] = archivos
+            return mensajes
     except Exception as e:
         return {"error": f"Error al obtener mensajes: {e}"}
     finally:

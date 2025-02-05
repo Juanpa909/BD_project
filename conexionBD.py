@@ -1,5 +1,5 @@
 import cx_Oracle
-
+# Clase de la conexion a la base de datos
 class conexionBD:
     _instance = None
 
@@ -24,7 +24,7 @@ class conexionBD:
             print(f"❌ Error de conexión: {e}")
 
     def get_cursor(self):
-        return self.connection.cursor()  # Devuelve un cursor nuevo en cada llamada
+        return self.connection.cursor() 
 
     def rollback(self):
         self.connection.rollback()
