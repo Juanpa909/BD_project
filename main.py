@@ -295,7 +295,8 @@ def post_mesnaje(datos: mensaje):
                     cursor.execute(query)
                     
                 else:
-                    break
+                    db.rollback()
+                    return {"message": "Error al enviar mensajes"}
             # Insertamos los destinatarios
             cursor.execute("SELECT MAX(consecDestinatario) from destinatario")
             consecDestinatario = int(cursor.fetchone()[0])+1
